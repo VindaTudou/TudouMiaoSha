@@ -31,6 +31,8 @@ public class VolatileCounter {
         long ms = (System.nanoTime() - start) / 1_000_000;
 
         System.out.println("---------- VolatileCounter (volatile 修饰) ----------");
+        System.out.println("线程数     : " + threads);
+        System.out.println("每线程自增 : " + iters);
         System.out.println("期望结果   : " + expect);
         System.out.println("实际结果   : " + count);
         System.out.println("丢失更新   : " + (expect - count) + "  次");
