@@ -68,7 +68,15 @@ git reset --hard <commit>        # 丢弃提交（只在本地、确认无用时
 
 | 项 | 值 |
 |---|---|
-| 机器 | Apple M2 / 8 核 / 16 GB |
-| JDK | Temurin 17 |
-| 容器 | Docker Desktop，VM 配额 4 CPU / 8 GB |
+| 机器 | Apple M2 / 8 核 / 16 GB / macOS |
+| JDK | Temurin 17.0.18 |
+| 容器 | Docker Desktop 29.7.2（Server 同版本，linux/arm64） |
+| VM 配额 | **4 核 / 8,320,299,008 B（≈7.75 GiB）** ← 2026-11-02 实测 |
 | 压测 | k6（V1 起） |
+
+> 这个配额表是全项目的**测量基准**。V1/V2/V3 的每个数字都必须在同一配额下产生，
+> 中途改配额 = 前面的数字全部作废。每次压测前跑一遍
+> `docker info --format '{{.NCPU}} 核 / {{.MemTotal}} B / {{.Architecture}}'` 核对。
+>
+> 另：所有镜像必须是 `linux/arm64` 原生。混入 amd64 镜像会走 QEMU 模拟，
+> 测出来的就不是应用性能而是模拟器性能。
