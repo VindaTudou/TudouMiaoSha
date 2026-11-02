@@ -1,0 +1,50 @@
+# 秒杀项目 —— 最小可复现环境
+#
+# 设计约定（每个参数后面都写了为什么）：
+#   1. name: miaosha —— 独立项目名，避免和机器上其它 compose 项目（如 doupilot）串味。
+#      docker compose down 只删本项目的资源，不会误伤别人。
+#   2. 数据用 named volume，不用 bind mount 到 ~/ 目录。
+#      macOS 的文件共享层（VirtioFS）会让 MySQL 的随机写入慢一个量级，
+#      V1 压测时你会把"文件共享开销"误判成"MySQL 瓶颈"。
+#   3. 端口只绑 127.0.0.1，不暴露到局域网。
+#   4. 密码写在默认值里，仅限本机学习用；真实项目走 .env + secret。
+
+name: miaosha
+
+services:
+  mysql:
+    image: mysql:8.4.5
+    container_name: miaosha-mysql
+    restart: "no"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-miaosha}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
+    command:
+      - --innodb-buffer-pool-size=512M
+      # 保留默认值，先测再调。V1 压测时会回来改它，并记录改前改后的数字。
+      - --max-connections=200
+      # 行锁等待超时，默认 50 秒。V0.2 会被它卡住，正好体会一下。
+      - --innodb-lock-wait-timeout=50
+      # 慢查询阈值 200ms：任何超过它的语句都会被记进慢日志
+      - --slow-query-log=1
+      - --long-query-time=0.2
+      - --slow-query-log-file=/var/lib/mysql/slow.log
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 只在数据卷为空时执行一次（初始化脚本）
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  mysql-data:
+    name: miaosha-mysql-data
