@@ -14,7 +14,7 @@ up: ## 起 MySQL 并等到就绪
 	@until docker exec miaosha-mysql mysqladmin ping -uroot -proot --silent >/dev/null 2>&1; do printf "."; sleep 1; done
 	@echo " ok"
 	@echo ""
-	@echo "连接方式：mysql -h127.0.0.1 -P3306 -uroot -proot miaosha"
+	@echo "连接方式：mysql -h127.0.0.1 -P3307 -uroot -proot miaosha"
 
 down: ## 停容器，数据保留
 	$(COMPOSE) down

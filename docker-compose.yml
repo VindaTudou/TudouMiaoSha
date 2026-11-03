@@ -21,7 +21,7 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-miaosha}
       TZ: Asia/Shanghai
     ports:
-      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
+      - "127.0.0.1:${MYSQL_PORT:-3307}:3306"
     command:
       - --innodb-buffer-pool-size=512M
       # 保留默认值，先测再调。V1 压测时会回来改它，并记录改前改后的数字。

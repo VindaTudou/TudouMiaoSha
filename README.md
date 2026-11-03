@@ -9,7 +9,7 @@
 | 阶段 | 内容 | 状态 | 记录 |
 |---|---|---|---|
 | V0.1 | 丢失更新：并发写同一值的真相 | ✅ 完成 | [RESULTS](v0/01-concurrency/RESULTS.md) |
-| V0.2 | MySQL 行锁：亲眼看见 `UPDATE` 卡住 | ⬜ 待做 | — |
+| V0.2 | MySQL 行锁：亲眼看见 `UPDATE` 卡住 | ✅ 完成 | [RESULTS](v0/02-rowlock/RESULTS.md) |
 | V0.3 | 索引：10 万行上 `type=ALL` vs `ref` | ⬜ 待做 | — |
 | V0.4 | 热点行 TPS 基线：后面容量估算的锚点 | ⬜ 待做 | — |
 | V1-a | 单体 + 直接查库，无锁下单 → 看超卖 | ⬜ 待做 | — |
