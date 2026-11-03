@@ -5,11 +5,11 @@ import com.tudou.miaosha.exception.SoldOutException;
 import com.tudou.miaosha.model.Product;
 import com.tudou.miaosha.repository.OrderRepository;
 import com.tudou.miaosha.repository.ProductRepository;
+import com.tudou.miaosha.support.OrderNoGenerator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class OrderService {
@@ -55,8 +55,7 @@ public class OrderService {
         products.overwriteStock(productId, p.stock() - quantity);
 
         // ④ 落订单
-        String orderNo = "O" + System.currentTimeMillis()
-                + ThreadLocalRandom.current().nextInt(1000, 9999);
+        String orderNo = OrderNoGenerator.next();
         BigDecimal amount = p.price().multiply(BigDecimal.valueOf(quantity));
         orders.insert(orderNo, userId, productId, quantity, amount);
         return orderNo;
