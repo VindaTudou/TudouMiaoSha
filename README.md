@@ -26,7 +26,9 @@ app/           Spring Boot 应用（V1 起）
 db/            schema + seed
 loadtest/k6/   压测脚本
 docs/          笔记与文档
+  README.md        文档索引（理论→证据→结论 三层）
   mysql-notes.md   MySQL 完整笔记（索引/事务/锁/日志）
+  locking-rules.md 锁的结论与工程规则（含面试十问）
   BENCHMARK.md     压测记录（V1 起）
   architecture.md  架构图与决策（V1 起）
 ```
