@@ -201,6 +201,67 @@ REPEATABLE READ 下则保留到事务结束。
 > 所以"卖完了还在抢锁"这件事，**在 RC 下会轻很多，在 RR 下会一直持续**。
 > 但这不改变吞吐天花板：只要还有并发写同一行，锁就是串行的。
 
+## 附：怎么读 `performance_schema.data_locks`
+
+### 字段速查
+
+| 字段 | 取值 | 含义 |
+|---|---|---|
+| `ENGINE_TRANSACTION_ID` | 数字 | 事务 ID，用来和 `innodb_trx` 对上 |
+| `INDEX_NAME` | `PRIMARY` / `idx_name` / `NULL` | 锁加在哪棵索引上；`NULL` 表示表级锁 |
+| `LOCK_TYPE` | `TABLE` / `RECORD` | 表级锁 / 记录锁 |
+| `LOCK_MODE` | `IX` `X` `S` `X,REC_NOT_GAP` `X,GAP` | 见下表 |
+| `LOCK_STATUS` | `GRANTED` / `WAITING` | 已获得 / 在排队 |
+| `LOCK_DATA` | `1` 或 `'B', 2` | 锁的是哪条记录 |
+
+### `LOCK_MODE` 的四种形态
+
+```
+索引里记录的排列：
+    ┌───┬───┬───┬───┬───┐
+    │ A │ B │ C │ D │ E │
+    └───┴───┴───┴───┴───┘
+
+X（Next-Key）    = 记录 + 它前面的间隙
+X,REC_NOT_GAP    = 只有记录，不含间隙（唯一索引/主键等值查询）
+X,GAP            = 只有间隙
+IX（表级）        = 意向排他锁，只声明"我下面有行锁"，不锁数据
+```
+
+### `LOCK_DATA` 的格式
+
+| 索引 | `LOCK_DATA` 长什么样 | 说明 |
+|---|---|---|
+| 主键索引 | `1` | 主键值 |
+| 二级索引 | `'B', 2` | **索引列值 + 主键值** |
+
+二级索引那行直接印证了《MySQL 笔记》里的结论：**二级索引叶子存的是 (索引列, 主键)**。
+
+### 一条能直接用的排查 SQL
+
+```sql
+SELECT r.trx_id AS waiting_trx, LEFT(r.trx_query, 40) AS waiting_sql,
+       b.trx_id AS blocking_trx, LEFT(b.trx_query, 40) AS blocking_sql,
+       TIMESTAMPDIFF(SECOND, b.trx_started, NOW()) AS blocking_secs
+FROM performance_schema.data_lock_waits w
+JOIN information_schema.innodb_trx b ON b.trx_id = w.BLOCKING_ENGINE_TRANSACTION_ID
+JOIN information_schema.innodb_trx r ON r.trx_id = w.REQUESTING_ENGINE_TRANSACTION_ID;
+```
+
+实测输出（A 在 `DO SLEEP(6)` 期间持锁，B 的 UPDATE 在等）：
+
+```
+waiting_trx  waiting_sql                            blocking_trx  blocking_sql    blocking_secs
+1903         UPDATE product SET stock=stock-1 ...    1902          DO SLEEP(6)     2
+```
+
+**一眼看出"谁在等谁、等的是哪条 SQL、阻塞方已经跑了多久"。**
+线上出现锁等待时，这条 SQL 就是第一手证据。
+
+> 注意 `blocking_sql` 显示的是 `DO SLEEP(6)`——因为阻塞方此时正在执行那条语句。
+> 真正把它锁住的是它事务里**上一条** UPDATE。看 `innodb_trx` 的 `trx_query` 只能看到"当前在跑什么"，
+> 要看"加了什么锁"得回到 `data_locks`。
+
 ## 结论
 
 1. **锁加在索引记录上**：`INDEX_NAME` + `LOCK_DATA` 两列就是证据。
