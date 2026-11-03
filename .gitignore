@@ -10,3 +10,4 @@ v0/03-baseline/lib/
 .buildx/
 logs/
 tools/
+out/
