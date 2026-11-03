@@ -1,0 +1,35 @@
+server:
+  port: 8080
+  tomcat:
+    threads:
+      max: 200          # 压测时观察这个池子会不会被打满（threads.busy）
+      min-spare: 20
+
+spring:
+  application:
+    name: miaosha
+  datasource:
+    # 本机直跑连 3307（容器映射出来的端口）；docker compose 里用环境变量覆盖成 mysql:3306
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3307/miaosha?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8}
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:root}
+    hikari:
+      pool-name: miaosha-pool
+      # 故意设小：10 个连接足够把单行热点打满（V0.4 实测 4 线程就饱和）
+      # 压测时会看到它被耗尽 → 第 11 个请求排队 → 最后超时
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      connection-timeout: 3000    # 3 秒拿不到连接就报错，比默认 30 秒更快暴露问题
+      max-lifetime: 1800000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    root: INFO

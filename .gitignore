@@ -6,3 +6,7 @@ target/
 .idea/
 *.iml
 v0/03-baseline/lib/
+.m2repo/
+.buildx/
+logs/
+tools/

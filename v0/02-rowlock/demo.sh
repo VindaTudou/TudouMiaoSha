@@ -11,11 +11,11 @@ set -u
 DB=miaosha
 RESET="UPDATE product SET stock = 1000 WHERE id = 1;"
 
-q() { docker exec -i -e MYSQL_PWD=root miaosha-mysql mysql -uroot "$DB" -N -B -e "$1" 2>&1; }
+q() { docker exec -i -e MYSQL_PWD=root miaosha-mysql mysql -uroot --default-character-set=utf8mb4 "$DB" -N -B -e "$1" 2>&1; }
 
 # 后台跑一条会持锁的 SQL：BEGIN → 加锁 → 睡 N 秒 → COMMIT
 hold() {
-  docker exec -i -e MYSQL_PWD=root miaosha-mysql mysql -uroot "$DB" -N -B \
+  docker exec -i -e MYSQL_PWD=root miaosha-mysql mysql -uroot --default-character-set=utf8mb4 "$DB" -N -B \
     -e "BEGIN; $1; SELECT SLEEP($2); COMMIT;" >/dev/null 2>&1 &
 }
 
@@ -41,7 +41,7 @@ hr; echo "场景 2：锁的明细 —— 谁在等谁"; hr
 q "$RESET" >/dev/null
 hold "UPDATE product SET stock = stock - 1 WHERE id = 1;" 8
 sleep 1
-( docker exec -i -e MYSQL_PWD=root miaosha-mysql mysql -uroot "$DB" -N -B \
+( docker exec -i -e MYSQL_PWD=root miaosha-mysql mysql -uroot --default-character-set=utf8mb4 "$DB" -N -B \
     -e "SET SESSION innodb_lock_wait_timeout = 6; UPDATE product SET stock = stock - 1 WHERE id = 1;" \
     >/dev/null 2>&1 ) &
 sleep 2
@@ -58,7 +58,7 @@ sleep 6
 
 hr; echo "场景 3：普通 SELECT 不被锁阻塞（快照读）"; hr
 q "$RESET" >/dev/null
-( docker exec -i -e MYSQL_PWD=root miaosha-mysql mysql -uroot "$DB" -N -B \
+( docker exec -i -e MYSQL_PWD=root miaosha-mysql mysql -uroot --default-character-set=utf8mb4 "$DB" -N -B \
     -e "BEGIN; SELECT stock FROM product WHERE id = 1; DO SLEEP(4); SELECT stock FROM product WHERE id = 1; COMMIT;" \
     2>&1 | sed 's/^/    A 读到: /' ) &
 sleep 1

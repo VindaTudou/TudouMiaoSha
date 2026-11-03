@@ -45,6 +45,34 @@ services:
       retries: 30
       start_period: 20s
 
+  # 应用容器：默认不启动（当前网络拉不到 Docker Hub 镜像）。
+  # 需要时：docker compose --profile app up -d --build
+  app:
+    profiles: ["app"]
+    build:
+      context: ./app
+    image: miaosha-app:local
+    container_name: miaosha-app
+    restart: "no"
+    environment:
+      # 容器内用服务名 mysql，不是宿主机的 3307
+      DB_URL: jdbc:mysql://mysql:3306/miaosha?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
+      TZ: Asia/Shanghai
+      # 堆固定，避免 JVM 按宿主机内存算（容器只有 8G，宿主机 16G）
+      JAVA_TOOL_OPTIONS: -Xms256m -Xmx384m
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/actuator/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+
 volumes:
   mysql-data:
     name: miaosha-mysql-data

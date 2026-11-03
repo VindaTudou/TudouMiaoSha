@@ -9,7 +9,7 @@ DB=miaosha
 ROWS=${ROWS:-100000}
 BATCH=1000
 
-M() { docker exec -i -e MYSQL_PWD=root miaosha-mysql mysql -uroot "$DB"; }
+M() { docker exec -i -e MYSQL_PWD=root miaosha-mysql mysql -uroot --default-character-set=utf8mb4 "$DB"; }
 
 echo "清空并重建 product 表..."
 M <<'SQL'

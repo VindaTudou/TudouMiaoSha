@@ -19,7 +19,7 @@ q "ALTER TABLE product DROP INDEX idx_name;" >/dev/null 2>&1
 
 hr; echo "条件：name 上没有索引"; hr
 echo "A: BEGIN → UPDATE ... WHERE name='B' → 持锁 5 秒"
-docker exec -i -e MYSQL_PWD=root miaosha-mysql mysql -uroot "$DB" -N -B \
+docker exec -i -e MYSQL_PWD=root miaosha-mysql mysql -uroot --default-character-set=utf8mb4 "$DB" -N -B \
   -e "BEGIN; UPDATE product SET stock = stock - 1 WHERE name = 'B'; DO SLEEP(5); COMMIT;" >/dev/null 2>&1 &
 sleep 1
 echo
@@ -33,7 +33,7 @@ sleep 5
 hr; echo "条件：给 name 建上索引"; hr
 q "ALTER TABLE product ADD INDEX idx_name (name);" >/dev/null
 echo "A: 同一条 UPDATE，再跑一次"
-docker exec -i -e MYSQL_PWD=root miaosha-mysql mysql -uroot "$DB" -N -B \
+docker exec -i -e MYSQL_PWD=root miaosha-mysql mysql -uroot --default-character-set=utf8mb4 "$DB" -N -B \
   -e "BEGIN; UPDATE product SET stock = stock - 1 WHERE name = 'B'; DO SLEEP(5); COMMIT;" >/dev/null 2>&1 &
 sleep 1
 echo

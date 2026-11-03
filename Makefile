@@ -3,7 +3,7 @@
 
 COMPOSE := docker compose
 
-.PHONY: help up down reset logs sql status
+.PHONY: help up down reset logs sql status app-build app-run app-bg app-stop
 
 help: ## 显示所有命令
 	@grep -E '^[a-z-]+:.*## ' Makefile | awk -F':.*## ' '{printf "  %-8s %s\n", $$1, $$2}'
@@ -27,7 +27,26 @@ logs: ## 实时看 MySQL 日志
 	$(COMPOSE) logs -f mysql
 
 sql: ## 进入 mysql 客户端
-	docker exec -it miaosha-mysql mysql -uroot -proot miaosha
+	docker exec -it miaosha-mysql mysql -uroot -proot --default-character-set=utf8mb4 miaosha
 
 status: ## 容器状态
 	$(COMPOSE) ps
+
+# ---------- 应用 ----------
+
+M2 = $(CURDIR)/.m2repo
+
+app-build: ## 编译应用（项目内 Maven 仓库，避免写 ~/.m2）
+	cd app && mvn -q -Dmaven.repo.local=$(M2) -DskipTests package
+	@ls -lh app/target/miaosha.jar
+
+app-run: ## 前台跑应用（连 127.0.0.1:3307）
+	java -Xms256m -Xmx384m -jar app/target/miaosha.jar
+
+app-bg: ## 后台跑应用，日志写 logs/app.log
+	@mkdir -p logs
+	@nohup java -Xms256m -Xmx384m -jar app/target/miaosha.jar > logs/app.log 2>&1 & echo $$! > logs/app.pid
+	@echo "应用 pid=$$(cat logs/app.pid)，日志: logs/app.log"
+
+app-stop: ## 停后台应用
+	@if [ -f logs/app.pid ]; then kill $$(cat logs/app.pid) 2>/dev/null; rm -f logs/app.pid; echo "已停止"; else echo "没在跑"; fi
