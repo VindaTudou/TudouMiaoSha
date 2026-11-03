@@ -69,6 +69,32 @@ git revert <commit>              # 撤掉某次提交（保留历史，安全）
 git reset --hard <commit>        # 丢弃提交（只在本地、确认无用时）
 ```
 
+
+## 在 IDE（IntelliJ IDEA）里打开
+
+**先说明一件事**：这台机器的全局 Maven 仓库在 `~/ComputerScience/maven/repository`，
+里面**没有** 3.3.5（只有 3.4.5）。所以直接用 IDE 打开，所有 Spring 注解都会标红
+（`@Repository` `@Service` `@RestController` 全都找不到），但**代码本身是对的**，
+命令行 `make app-build` 能编译通过。
+
+原因是本项目把依赖装在**项目内**的 `.m2repo`，避免写沙箱外的目录。
+
+### 配置步骤
+
+1. `File → Open` 选择 **`app/pom.xml`**（不是仓库根目录），按 "Open as Project"
+2. Settings → Build, Execution, Deployment → Build Tools → Maven
+   - **Local repository**：勾选 Override，填
+     `/Users/fangtudou/ComputerScience/Projects/TudouMiaoSha/.m2repo`
+   - 或者保持默认——`app/.mvn/maven.config` 里已经写了
+     `-Dmaven.repo.local=../.m2repo`，IDEA 导入时会读到
+3. Maven 面板点 **Reload All Maven Projects**
+
+### 如果还标红
+
+- 检查 JDK：Project Structure → SDK 必须是 **17**
+- `mvn` 面板 → Execute Maven Goal → `clean compile`，看真实报错
+- 命令行验证：`make app-build`。**命令行能过，就是 IDE 配置问题，不是代码问题**
+
 ## 环境
 
 | 项 | 值 |
