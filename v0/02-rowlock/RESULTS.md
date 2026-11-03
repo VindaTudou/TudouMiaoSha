@@ -262,6 +262,37 @@ waiting_trx  waiting_sql                            blocking_trx  blocking_sql  
 > 真正把它锁住的是它事务里**上一条** UPDATE。看 `innodb_trx` 的 `trx_query` 只能看到"当前在跑什么"，
 > 要看"加了什么锁"得回到 `data_locks`。
 
+## 实验八：间隙锁 —— 锁住"不存在的位置"
+
+数据只有 id = 1、5、10，**7 不存在**。
+
+```sql
+A: BEGIN; SELECT id FROM product WHERE id = 7 FOR UPDATE;   -- 查一个不存在的行
+```
+
+A 锁住了什么：
+
+```
+LOCK_MODE   LOCK_DATA
+X,GAP       10
+```
+
+`LOCK_DATA = 10` 表示**锁住 id=10 之前的那段间隙，也就是 (5, 10)**。
+
+两个插入的结果：
+
+| B 的操作 | 等待 | 结果 |
+|---|---|---|
+| `INSERT id = 7`（落在 (5,10) 里） | **2,098 ms** | `ERROR 1205` 超时 |
+| `INSERT id = 3`（落在 (1,5) 里） | **89 ms** | 成功 |
+
+最终数据：`1, 3, 5, 10` —— 只多了 3，7 被挡住。
+
+**结论：**
+1. 间隙锁锁的不是记录，是**两条相邻记录之间的区间**。
+2. 它只挡 `INSERT`，不挡已有行的 `UPDATE` / `DELETE`。
+3. 查询一个不存在的值，也会留下一个锁。
+
 ## 结论
 
 1. **锁加在索引记录上**：`INDEX_NAME` + `LOCK_DATA` 两列就是证据。
