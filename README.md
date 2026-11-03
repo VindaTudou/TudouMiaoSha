@@ -25,7 +25,10 @@ v0/            地基实验（不写业务代码，只建立直觉）
 app/           Spring Boot 应用（V1 起）
 db/            schema + seed
 loadtest/k6/   压测脚本
-docs/          BENCHMARK.md / architecture.md（V1 起）
+docs/          笔记与文档
+  mysql-notes.md   MySQL 完整笔记（索引/事务/锁/日志）
+  BENCHMARK.md     压测记录（V1 起）
+  architecture.md  架构图与决策（V1 起）
 ```
 
 ## 复现
