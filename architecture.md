@@ -73,6 +73,57 @@ sequenceDiagram
 
 ---
 
+## V1-b — 一行 SQL 修好超卖
+
+### 改动
+
+```java
+// V1-a（错）：应用算好绝对值盖回去
+UPDATE product SET stock = ? WHERE id = ?
+
+// V1-b（对）：把判断塞进 WHERE，看影响行数
+UPDATE product SET stock = stock - ? WHERE id = ? AND stock >= ?
+```
+
+```java
+int affected = products.deductStock(productId, quantity);
+if (affected == 0) throw new SoldOutException();   // 0 行 = 没抢到
+```
+
+### 为什么这样是对的
+
+`UPDATE` 是**当前读 + 排他锁**：定位 → 加锁 → 读最新值 → 判断 → 减 → 持有锁到提交。
+**判断发生在锁内**，中间没人能插进来。
+
+对照 V0.1：
+
+| MySQL | Java |
+|---|---|
+| `SELECT` 判断再 `UPDATE` | `count++` |
+| `UPDATE ... WHERE stock >= ?` | `AtomicInteger.incrementAndGet()` |
+| `SELECT ... FOR UPDATE` | `synchronized` |
+
+### 结果
+
+| | 结果 |
+|---|---|
+| 超卖 | **0 单**（库存 10，60 并发，正好成功 10 单） |
+| 吞吐 | **880–991 /s**，与 V1-a 持平 |
+| 售罄时吞吐 | **~1,900 /s**（快一倍，因为不写盘） |
+
+**修正确性几乎不花性能**——因为锁本来就在，只是把判断挪到了锁内。
+
+### 仍然存在的问题
+
+1. 单 SKU 吞吐还是 ~950/s，没变（瓶颈没解决，只是不再出错）
+2. 仍然每单都打 MySQL 同一行
+3. 没有幂等（同一用户连点两次仍是两单）
+4. 没有削峰，流量原样打到数据库
+
+> **V1-b 只解决了"对不对"，没解决"扛不扛得住"。** 后者是 V2 的事。
+
+---
+
 ## V2 — Redis 预扣库存 + MQ 削峰
 
 （待开始）

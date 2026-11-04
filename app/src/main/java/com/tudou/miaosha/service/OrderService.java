@@ -43,16 +43,15 @@ public class OrderService {
             throw new IllegalArgumentException("数量必须大于 0");
         }
 
+        // 查出来是为了拿 price 算金额；库存判断【不】基于它
         Product p = products.findById(productId)
                 .orElseThrow(() -> new NotFoundException("商品不存在: " + productId));
 
-        // ① ② 判断
-        if (p.stock() < quantity) {
+        // 唯一的判断点：把「够不够」塞进 UPDATE 的 WHERE，用影响行数当结果
+        int affected = products.deductStock(productId, quantity);
+        if (affected == 0) {
             throw new SoldOutException();
         }
-
-        // ③ 覆盖式写入：把基于旧快照算出来的值，无条件盖回去
-        products.overwriteStock(productId, p.stock() - quantity);
 
         // ④ 落订单
         String orderNo = OrderNoGenerator.next();

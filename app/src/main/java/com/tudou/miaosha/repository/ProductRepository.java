@@ -35,15 +35,22 @@ public class ProductRepository {
     }
 
     /**
-     * V1-a 的【错误写法】，故意保留：把应用算好的绝对值覆盖回去。
+     * V1-b：把「判断够不够」和「扣减」合成一条语句。
      *
-     * 问题：从"读到 p.stock()"到"写回"之间，别人可能已经改过这一行。
-     * 你写回的是一个基于过期数据的值，别人的修改就被覆盖了 —— 这就是丢失更新，
-     * 在秒杀场景里表现为【超卖】。
+     * UPDATE 是当前读 + 排他锁：定位到 id 那一行 → 加锁 → 读最新值 →
+     * 判断 stock >= quantity → 成立才减 → 持有锁到事务提交。
+     * 中间不给任何人插手的机会。
      *
-     * V1-b 会把它换成条件更新，并对比两者的压测数字。
+     * 返回【影响行数】：
+     *   1 = 抢到了，库存已扣
+     *   0 = 库存不足，什么都没改
+     *
+     * 这就是「用影响行数当判断结果」，而不是先 SELECT 再判断。
+     * 对应 V0.1 里 AtomicInteger 的 CAS，而不是 count++。
      */
-    public int overwriteStock(long id, int newStock) {
-        return jdbc.update("UPDATE product SET stock = ? WHERE id = ?", newStock, id);
+    public int deductStock(long id, int quantity) {
+        return jdbc.update(
+                "UPDATE product SET stock = stock - ? WHERE id = ? AND stock >= ?",
+                quantity, id, quantity);
     }
 }
