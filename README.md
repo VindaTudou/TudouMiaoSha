@@ -12,7 +12,7 @@
 | V0.2 | MySQL 行锁：亲眼看见 `UPDATE` 卡住 | ✅ 完成 | [RESULTS](v0/02-rowlock/RESULTS.md) |
 | V0.3 | 索引：10 万行上 `type=ALL` vs `ref` | ✅ 完成 | [RESULTS](v0/03-baseline/RESULTS.md) |
 | V0.4 | 热点行 TPS 基线：后面容量估算的锚点 | ✅ 完成 | 同上 |
-| V1-a | 单体 + 直接查库，无锁下单 → 看超卖 | ✅ 完成 | [BENCHMARK](BENCHMARK.md) |
+| V1-a | 单体 + 直接查库，无锁下单 → 看超卖 | ✅ 完成 | [测试原理与结果](v1/RESULTS.md) |
 | V1-b | 条件更新修超卖 → 看吞吐代价 | ⬜ 待做 | — |
 | V2 | Redis 预扣 + MQ 削峰 | ⬜ 待做 | — |
 | V3 | 多实例 + 限流 + 可观测 + 故障演练 | ⬜ 待做 | — |
