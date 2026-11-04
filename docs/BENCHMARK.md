@@ -57,7 +57,7 @@ k6 的 `constant-arrival-rate` 靠 VU 发请求，**一个 VU 同时只能有 1 
 
 ---
 
-> 详细的测试原理、三轮定位过程、复现步骤见 [v1/RESULTS.md](v1/RESULTS.md)。
+> 详细的测试原理、三轮定位过程、复现步骤见 [v1/RESULTS.md](v1/experiment.md)。
 
 ## 核心表格
 

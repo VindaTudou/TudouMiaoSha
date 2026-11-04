@@ -4,34 +4,40 @@
 
 目标岗位：国内后端开发（Java + Spring Boot 3）。所有优化都必须先有瓶颈证据，再有改造。
 
+**文档入口 → [docs/README.md](docs/README.md)**
+
 ## 进度
 
 | 阶段 | 内容 | 状态 | 记录 |
 |---|---|---|---|
-| V0.1 | 丢失更新：并发写同一值的真相 | ✅ 完成 | [RESULTS](v0/01-concurrency/RESULTS.md) |
-| V0.2 | MySQL 行锁：亲眼看见 `UPDATE` 卡住 | ✅ 完成 | [RESULTS](v0/02-rowlock/RESULTS.md) |
-| V0.3 | 索引：10 万行上 `type=ALL` vs `ref` | ✅ 完成 | [RESULTS](v0/03-baseline/RESULTS.md) |
+| V0.1 | 丢失更新：并发写同一值的真相 | ✅ 完成 | [RESULTS](docs/v0/01-concurrency.md) |
+| V0.2 | MySQL 行锁：亲眼看见 `UPDATE` 卡住 | ✅ 完成 | [RESULTS](docs/v0/02-rowlock.md) |
+| V0.3 | 索引：10 万行上 `type=ALL` vs `ref` | ✅ 完成 | [RESULTS](docs/v0/03-baseline.md) |
 | V0.4 | 热点行 TPS 基线：后面容量估算的锚点 | ✅ 完成 | 同上 |
-| V1-a | 单体 + 直接查库，无锁下单 → 看超卖 | ✅ 完成 | [测试原理与结果](v1/RESULTS.md) |
-| V1-b | 条件更新修超卖 → 看吞吐代价 | ✅ 完成 | [BENCHMARK](BENCHMARK.md) |
+| V1-a | 单体 + 直接查库，无锁下单 → 看超卖 | ✅ 完成 | [测试原理与结果](docs/v1/experiment.md) |
+| V1-b | 条件更新修超卖 → 看吞吐代价 | ✅ 完成 | [BENCHMARK](docs/BENCHMARK.md) |
 | V2 | Redis 预扣 + MQ 削峰 | ⬜ 待做 | — |
 | V3 | 多实例 + 限流 + 可观测 + 故障演练 | ⬜ 待做 | — |
 
 ## 目录
 
 ```
-v0/            地基实验（不写业务代码，只建立直觉）
-  01-concurrency/
-app/           Spring Boot 应用（V1 起）
+docs/          ★ 所有文档都在这里，入口：docs/README.md
+  README.md        文档索引
+  BENCHMARK.md     每一版的压测数字（带 commit）
+  architecture.md  各版本架构图与决策
+  mysql-notes.md   MySQL 完整笔记
+  locking-rules.md 锁的十条规则 + 面试十问
+  v0/ v1/          各阶段实验记录
+
+app/           Spring Boot 应用
 db/            schema + seed
-loadtest/k6/   压测脚本
-docs/          笔记与文档
-  README.md        文档索引（理论→证据→结论 三层）
-  mysql-notes.md   MySQL 完整笔记（索引/事务/锁/日志）
-  locking-rules.md 锁的结论与工程规则（含面试十问）
-  BENCHMARK.md     压测记录（V1 起）
-  architecture.md  架构图与决策（V1 起）
+loadtest/      压测脚本（k6）
+v0/            地基实验的代码（结论见 docs/v0/）
+tools/         k6 二进制（不入库）
 ```
+
+> **约定：代码目录只放能跑的东西，所有文字记录都进 `docs/`。**
 
 ## 复现
 
