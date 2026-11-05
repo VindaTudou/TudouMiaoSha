@@ -29,8 +29,8 @@ spring:
       timeout: 2s
       lettuce:
         pool:
-          max-active: 16
-          max-idle: 8
+          max-active: ${REDIS_POOL_MAX:16}
+          max-idle: ${REDIS_POOL_MAX:8}
           min-idle: 2
 
   # ---------- V2：Kafka 异步落库 ----------
@@ -43,7 +43,7 @@ spring:
       retries: 3
       properties:
         enable.idempotence: true  # 生产者幂等，避免重试导致重复
-        linger.ms: 5              # 攒 5ms 再发，用一点延迟换吞吐
+        linger.ms: ${KAFKA_LINGER_MS:5}   # 攒批等待；0 = 立刻发
         batch.size: 16384
     consumer:
       group-id: miaosha-order-consumer

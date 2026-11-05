@@ -56,7 +56,9 @@ services:
       DB_URL: jdbc:mysql://mysql:3306/miaosha?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      REDIS_POOL_MAX: ${REDIS_POOL_MAX:-16}
       KAFKA_BOOTSTRAP: kafka:29092
+      KAFKA_LINGER_MS: ${KAFKA_LINGER_MS:-5}
       DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
       TZ: Asia/Shanghai
       # 堆固定，避免 JVM 按宿主机内存算（容器只有 8G，宿主机 16G）

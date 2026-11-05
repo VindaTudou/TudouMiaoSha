@@ -30,7 +30,7 @@ const scenarios = {
     duration: SECKILL_DURATION,
     preAllocatedVUs: 200,
     // 延迟高时需要大量 VU：需要的 VU ≈ 到达率 × P99(秒)
-    maxVUs: 8000,
+    maxVUs: Number(__ENV.MAX_VUS || 8000),
     startTime: BROWSE_ON ? '5s' : '0s',
     tags: { scenario: 'seckill' },
   },
