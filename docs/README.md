@@ -35,6 +35,7 @@
 | V0.2 | [v0/02-rowlock-lab.md](v0/02-rowlock-lab.md) | 行锁实验手册（可照着敲） |
 | V0.3/V0.4 | [v0/03-baseline.md](v0/03-baseline.md) | 没索引的 UPDATE 慢 142 倍；单机热点行 2000 TPS |
 | V1-a/b | [v1/experiment.md](v1/experiment.md) | 超卖 33 单 → 0 单；吞吐封顶 950/s，根因是单行热点 |
+| V2 | [v2/experiment.md](v2/experiment.md) | 请求侧 950 → 3,000/s（P99 16ms），但落库仍 950/s；瓶颈被搬走没被消灭。含 `linger.ms` 假设被推翻的记录 |
 
 ## 代码在哪
 
@@ -44,7 +45,9 @@
 | V0.2 行锁 | `v0/02-rowlock/demo.sh`、`lock-scope.sh` |
 | V0.3/0.4 基线 | `v0/03-baseline/setup.sh`、`HotspotBench.java` |
 | V1 应用 | `app/` |
-| 压测 | `loadtest/k6/v1.js`、`loadtest/run-capacity.sh` |
+| V2 应用 | `app/`（同上，V2 是在同一套代码上演进） |
+| 压测 V1 | `loadtest/k6/v1.js`、`loadtest/run-capacity.sh` |
+| 压测 V2 | `loadtest/k6/v2.js`、`loadtest/run-capacity-v2.sh`（含 lag 采样与对账） |
 
 ## 写作约定
 

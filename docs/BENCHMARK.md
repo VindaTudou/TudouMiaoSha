@@ -57,7 +57,9 @@ k6 的 `constant-arrival-rate` 靠 VU 发请求，**一个 VU 同时只能有 1 
 
 ---
 
-> 详细的测试原理、三轮定位过程、复现步骤见 [v1/RESULTS.md](v1/experiment.md)。
+> 详细的测试原理、定位过程、复现步骤见：
+> [v1/experiment.md](v1/experiment.md)（超卖 + 950/s 封顶）、
+> [v2/experiment.md](v2/experiment.md)（请求侧 3,000/s + 消费侧 950/s + 对账）。
 
 ## 核心表格
 
