@@ -1,0 +1,15 @@
+apiVersion: 1
+
+# 让 Grafana 启动时自动加载 ops/grafana/dashboards/*.json。
+# 路径用相对路径 —— 启动脚本会 cd 到仓库根目录再拉起 grafana。
+providers:
+  - name: miaosha
+    orgId: 1
+    folder: Miaosha
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: ops/grafana/dashboards
+      foldersFromFilesStructure: false

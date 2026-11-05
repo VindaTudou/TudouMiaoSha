@@ -1,6 +1,11 @@
 server:
   port: 8080
   tomcat:
+    # 【坑】不开这个，tomcat_threads_busy_threads 这条指标根本不存在。
+    # Boot 3 为了省开销默认关掉 Tomcat 的 MBean 注册，而线程池指标是从 MBean 读的。
+    # 结果就是：你以为监控在跑，其实最关心那条线一直是空白的。
+    mbeanregistry:
+      enabled: true
     threads:
       max: 200          # 压测时观察这个池子会不会被打满（threads.busy）
       min-spare: 20
@@ -61,10 +66,24 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        # prometheus 这个端点就是 Prometheus 每 15 秒来拉的那张"数字清单"
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: always
+  metrics:
+    tags:
+      # 多实例时靠 app_instance 区分两台机器，否则两条线会粘在一起。
+      # 不叫 instance 是因为 Prometheus 自己在抓取时会打一个 instance=host:port 标签，
+      # 同名会被改名成 exported_instance，图上看着很别扭。
+      application: miaosha
+      app_instance: ${INSTANCE_ID:local}
+    distribution:
+      percentiles-histogram:
+        # 导出直方图桶，Grafana 才能用 histogram_quantile 跨实例聚合算 P99
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5,0.9,0.95,0.99
 
 logging:
   level:

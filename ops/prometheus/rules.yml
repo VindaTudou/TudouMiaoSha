@@ -1,0 +1,54 @@
+# 告警规则
+#
+# 注意：Prometheus 只负责「判断」，不负责「通知」。
+# 真发微信/邮件需要接 Alertmanager，本地实验不做，先让规则跑起来、
+# 能在 /alerts 页面看到 firing 状态就够了。
+
+groups:
+  - name: miaosha
+    rules:
+      # ① 积压：还有多少单没落库。这是 V2 留下来的头号问题，必须第一个被看见。
+      #    注意用分区级的 records_lag，不是 records_lag_max：
+      #    Kafka 在「还没有积压测量值」时会把 lag_max 报成 NaN，一 sum 就全变 NaN。
+      - alert: KafkaLagHigh
+        expr: sum(kafka_consumer_fetch_manager_records_lag) > 10000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kafka 积压超过 1 万条"
+          description: "当前积压 {{ $value }} 条；按 950/s 的落库速度，要 {{ $value }} 秒才能排空"
+
+      # ② 发送失败率：>1% 说明 Kafka 这条链路有问题
+      - alert: SendFailRateHigh
+        expr: |
+          sum(rate(miaosha_order_total{result="send_fail"}[1m]))
+          /
+          clamp_min(sum(rate(miaosha_order_total[1m])), 0.001)
+          > 0.01
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kafka 发送失败率 > 1%"
+
+      # ③ 延迟：P99 超过 500ms 就已经不正常了（3,000/s 时正常是 16ms）
+      - alert: OrderP99TooHigh
+        expr: |
+          histogram_quantile(0.99,
+            sum by (le) (rate(http_server_requests_seconds_bucket{uri="/api/orders"}[1m]))
+          ) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "下单接口 P99 > 500ms"
+
+      # ④ 线程池打满：这就是 V2 里"37ms × 200 线程"那条曲线的终点
+      - alert: TomcatThreadsExhausted
+        expr: max(tomcat_threads_busy_threads) >= 200
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Tomcat 线程池打满，请求开始排队"

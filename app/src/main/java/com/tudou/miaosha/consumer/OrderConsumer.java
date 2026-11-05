@@ -3,6 +3,7 @@ package com.tudou.miaosha.consumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tudou.miaosha.model.OrderMessage;
 import com.tudou.miaosha.service.OrderWriter;
+import com.tudou.miaosha.support.MiaoshaMetrics;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,10 +19,12 @@ public class OrderConsumer {
 
     private final ObjectMapper om;
     private final OrderWriter writer;
+    private final MiaoshaMetrics metrics;
 
-    public OrderConsumer(ObjectMapper om, OrderWriter writer) {
+    public OrderConsumer(ObjectMapper om, OrderWriter writer, MiaoshaMetrics metrics) {
         this.om = om;
         this.writer = writer;
+        this.metrics = metrics;
     }
 
     /**
@@ -39,6 +42,7 @@ public class OrderConsumer {
             m = om.readValue(record.value(), OrderMessage.class);
         } catch (Exception e) {
             // 消息体坏了，重试也没用 → ack 掉，别堵住队列
+            metrics.persist(MiaoshaMetrics.PERSIST_BAD_MESSAGE);
             log.error("消息解析失败，丢弃: {}", record.value(), e);
             ack.acknowledge();
             return;
@@ -47,15 +51,21 @@ public class OrderConsumer {
         try {
             boolean ok = writer.persist(m);
             if (!ok) {
+                // Redis 说还有货、MySQL 说没有了 → 少卖，交给对账
+                metrics.persist(MiaoshaMetrics.PERSIST_SHORT);
                 log.warn("Redis 与 DB 库存不一致，少卖一单 orderNo={}", m.orderNo());
+            } else {
+                metrics.persist(MiaoshaMetrics.PERSIST_OK);
             }
             ack.acknowledge();
             log.debug("落库完成 orderNo={} partition={} offset={}",
                     m.orderNo(), record.partition(), record.offset());
         } catch (DuplicateKeyException e) {
+            metrics.persist(MiaoshaMetrics.PERSIST_DUP);
             log.info("订单已存在，幂等跳过 orderNo={}", m.orderNo());
             ack.acknowledge();
         } catch (Exception e) {
+            metrics.persist(MiaoshaMetrics.PERSIST_FAIL);
             log.error("落库失败，将重投 orderNo={}", m.orderNo(), e);
             throw e;   // 不 ack → Kafka 重投
         }

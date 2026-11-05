@@ -1,6 +1,7 @@
 package com.tudou.miaosha.service;
 
 import com.tudou.miaosha.repository.ProductRepository;
+import com.tudou.miaosha.support.MiaoshaMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -26,13 +27,16 @@ public class StockService {
     private final StringRedisTemplate redis;
     private final DefaultRedisScript<Long> stockDeductScript;
     private final ProductRepository products;
+    private final MiaoshaMetrics metrics;
 
     public StockService(StringRedisTemplate redis,
                         DefaultRedisScript<Long> stockDeductScript,
-                        ProductRepository products) {
+                        ProductRepository products,
+                        MiaoshaMetrics metrics) {
         this.redis = redis;
         this.stockDeductScript = stockDeductScript;
         this.products = products;
+        this.metrics = metrics;
     }
 
     /** 从 MySQL 把库存和价格预热进 Redis，并清空去重集合。 */
@@ -52,12 +56,18 @@ public class StockService {
      * @return 1 抢到 / 0 售罄 / -1 重复 / -2 未预热
      */
     public long tryDeduct(long productId, long userId, int quantity) {
-        Long r = redis.execute(
-                stockDeductScript,
-                List.of(stockKey(productId), usersKey(productId)),
-                String.valueOf(quantity),
-                String.valueOf(userId));
-        return r == null ? -2 : r;
+        // V2 里这里只有一个"约 0.1ms"的估计值，没人量过。V3 把它变成图上的真实分布。
+        long t0 = System.nanoTime();
+        try {
+            Long r = redis.execute(
+                    stockDeductScript,
+                    List.of(stockKey(productId), usersKey(productId)),
+                    String.valueOf(quantity),
+                    String.valueOf(userId));
+            return r == null ? -2 : r;
+        } finally {
+            metrics.recordRedisDeduct(System.nanoTime() - t0);
+        }
     }
 
     /** 发 MQ 失败时回滚，把库存和用户标记还回去。 */

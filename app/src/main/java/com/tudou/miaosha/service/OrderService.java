@@ -4,6 +4,7 @@ import com.tudou.miaosha.exception.DuplicateOrderException;
 import com.tudou.miaosha.exception.SoldOutException;
 import com.tudou.miaosha.exception.ServiceBusyException;
 import com.tudou.miaosha.model.OrderMessage;
+import com.tudou.miaosha.support.MiaoshaMetrics;
 import com.tudou.miaosha.support.OrderNoGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,10 +29,12 @@ public class OrderService {
 
     private final StockService stock;
     private final OrderProducer producer;
+    private final MiaoshaMetrics metrics;
 
-    public OrderService(StockService stock, OrderProducer producer) {
+    public OrderService(StockService stock, OrderProducer producer, MiaoshaMetrics metrics) {
         this.stock = stock;
         this.producer = producer;
+        this.metrics = metrics;
     }
 
     public record OrderResult(String orderNo, String status) {
@@ -45,12 +48,15 @@ public class OrderService {
         // ① 原子扣减
         long r = stock.tryDeduct(productId, userId, quantity);
         if (r == -2) {
+            metrics.order(MiaoshaMetrics.ORDER_NOT_PREHEATED);
             throw new IllegalStateException("库存未预热: " + productId);
         }
         if (r == -1) {
+            metrics.order(MiaoshaMetrics.ORDER_DUPLICATE);
             throw new DuplicateOrderException();
         }
         if (r == 0) {
+            metrics.order(MiaoshaMetrics.ORDER_SOLDOUT);
             throw new SoldOutException();
         }
 
@@ -62,12 +68,14 @@ public class OrderService {
         try {
             producer.send(msg);
         } catch (Exception e) {
+            metrics.order(MiaoshaMetrics.ORDER_SEND_FAIL);
             stock.rollback(productId, userId, quantity);
             log.error("发送 MQ 失败，已回滚库存 orderNo={}", orderNo, e);
             throw new ServiceBusyException("下单繁忙，请重试");
         }
 
         // ③ 立刻返回，不等落库
+        metrics.order(MiaoshaMetrics.ORDER_SUCCESS);
         return new OrderResult(orderNo, "QUEUED");
     }
 }

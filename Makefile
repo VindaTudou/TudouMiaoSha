@@ -4,7 +4,7 @@
 # BUILDX_CONFIG 指到项目内：否则 buildx 会往 ~/.docker 写，沙箱不允许
 COMPOSE := BUILDX_CONFIG=$(CURDIR)/.buildx docker compose
 
-.PHONY: help up down reset logs sql status app-build app-run app-bg app-stop
+.PHONY: help up down reset logs sql status app-build app-run app-bg app-stop obs-up obs-down obs-status verify-metrics
 
 help: ## 显示所有命令
 	@grep -E '^[a-z-]+:.*## ' Makefile | awk -F':.*## ' '{printf "  %-8s %s\n", $$1, $$2}'
@@ -51,3 +51,15 @@ app-bg: ## 后台跑应用，日志写 logs/app.log
 
 app-stop: ## 停后台应用
 	@if [ -f logs/app.pid ]; then kill $$(cat logs/app.pid) 2>/dev/null; rm -f logs/app.pid; echo "已停止"; else echo "没在跑"; fi
+
+obs-up: ## 起 Prometheus(9090) + Grafana(3000)
+	@ops/observability.sh up
+
+obs-down: ## 停 Prometheus + Grafana
+	@ops/observability.sh down
+
+obs-status: ## 看可观测性组件状态
+	@ops/observability.sh status
+
+verify-metrics: ## M1 验收：核对监控数字与 k6 数字（攻击性压测，约 4 分钟）
+	@bash ops/verify-metrics.sh 3000 30s

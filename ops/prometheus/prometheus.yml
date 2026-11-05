@@ -1,0 +1,31 @@
+# Prometheus 抓取配置
+#
+# 它做的事很朴素：每隔 15 秒，去应用的 /actuator/prometheus 把那堆 key=value 拉回来，
+# 存成带时间戳的序列。有了历史，才能回答"5 分钟前发生了什么"。
+
+global:
+  # 5 秒而不是默认 15 秒：压测只跑 20~30 秒，15 秒一次的话一段曲线只有两个点，
+  # rate() 的窗口里还常常只有 1 个样本 → 面板直接显示「无数据」。
+  scrape_interval: 5s
+  evaluation_interval: 5s
+  external_labels:
+    env: local
+
+rule_files:
+  - rules.yml
+
+scrape_configs:
+  # 应用。V3 多实例时这里会有 8080 和 8081 两个 target，
+  # Grafana 上按 instance 标签就能分开看。
+  - job_name: miaosha
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - 127.0.0.1:8080
+        #  - 127.0.0.1:8081     # M3 打开
+
+  # 自己监控自己（能看到抓取耗时、目标是否存活）
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - 127.0.0.1:9090
