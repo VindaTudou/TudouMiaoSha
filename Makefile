@@ -1,7 +1,8 @@
 # 秒杀项目 —— 常用命令
 # 用法：make help
 
-COMPOSE := docker compose
+# BUILDX_CONFIG 指到项目内：否则 buildx 会往 ~/.docker 写，沙箱不允许
+COMPOSE := BUILDX_CONFIG=$(CURDIR)/.buildx docker compose
 
 .PHONY: help up down reset logs sql status app-build app-run app-bg app-stop
 

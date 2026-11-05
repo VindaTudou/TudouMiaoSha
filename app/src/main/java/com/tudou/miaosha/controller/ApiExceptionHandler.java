@@ -1,6 +1,8 @@
 package com.tudou.miaosha.controller;
 
+import com.tudou.miaosha.exception.DuplicateOrderException;
 import com.tudou.miaosha.exception.NotFoundException;
+import com.tudou.miaosha.exception.ServiceBusyException;
 import com.tudou.miaosha.exception.SoldOutException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +25,18 @@ public class ApiExceptionHandler {
     public ResponseEntity<Map<String, Object>> soldOut(SoldOutException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("code", "SOLD_OUT", "message", e.getMessage()));
+    }
+
+    @ExceptionHandler(DuplicateOrderException.class)
+    public ResponseEntity<Map<String, Object>> duplicate(DuplicateOrderException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("code", "DUPLICATE", "message", e.getMessage()));
+    }
+
+    @ExceptionHandler(ServiceBusyException.class)
+    public ResponseEntity<Map<String, Object>> busy(ServiceBusyException e) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(Map.of("code", "BUSY", "message", e.getMessage()));
     }
 
     @ExceptionHandler(NotFoundException.class)

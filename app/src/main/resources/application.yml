@@ -8,18 +8,54 @@ server:
 spring:
   application:
     name: miaosha
+
   datasource:
-    # 本机直跑连 3307（容器映射出来的端口）；docker compose 里用环境变量覆盖成 mysql:3306
+    # 容器内用 mysql:3306；本机直跑默认连 3307（Docker 映射出来的端口）
     url: ${DB_URL:jdbc:mysql://127.0.0.1:3307/miaosha?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8}
     username: ${DB_USER:root}
     password: ${DB_PASSWORD:root}
     hikari:
       pool-name: miaosha-pool
       # 故意设小：10 个连接足够把单行热点打满（V0.4 实测 4 线程就饱和）
-      # 压测时会看到它被耗尽 → 第 11 个请求排队 → 最后超时
       maximum-pool-size: ${DB_POOL_SIZE:10}
       connection-timeout: 3000    # 3 秒拿不到连接就报错，比默认 30 秒更快暴露问题
       max-lifetime: 1800000
+
+  # ---------- V2：Redis 存库存 ----------
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6380}
+      timeout: 2s
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+
+  # ---------- V2：Kafka 异步落库 ----------
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:127.0.0.1:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all                   # 等所有 ISR 确认，最安全
+      retries: 3
+      properties:
+        enable.idempotence: true  # 生产者幂等，避免重试导致重复
+        linger.ms: 5              # 攒 5ms 再发，用一点延迟换吞吐
+        batch.size: 16384
+    consumer:
+      group-id: miaosha-order-consumer
+      auto-offset-reset: earliest
+      enable-auto-commit: false   # 【关键】手动 ack：落库成功才提交位点
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      max-poll-records: 200
+    listener:
+      ack-mode: manual_immediate
+      # 分区数是 3，所以最多 3 个消费者并行；设多了会空闲
+      concurrency: 3
 
 management:
   endpoints:
@@ -33,3 +69,8 @@ management:
 logging:
   level:
     root: INFO
+
+# ---------- 秒杀业务配置 ----------
+miaosha:
+  seckill-product-id: ${SECKILL_PRODUCT_ID:1}
+  order-topic: seckill-order

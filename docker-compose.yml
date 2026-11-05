@@ -45,10 +45,7 @@ services:
       retries: 30
       start_period: 20s
 
-  # 应用容器：默认不启动（当前网络拉不到 Docker Hub 镜像）。
-  # 需要时：docker compose --profile app up -d --build
   app:
-    profiles: ["app"]
     build:
       context: ./app
     image: miaosha-app:local
@@ -57,6 +54,9 @@ services:
     environment:
       # 容器内用服务名 mysql，不是宿主机的 3307
       DB_URL: jdbc:mysql://mysql:3306/miaosha?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP: kafka:29092
       DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
       TZ: Asia/Shanghai
       # 堆固定，避免 JVM 按宿主机内存算（容器只有 8G，宿主机 16G）
@@ -109,13 +109,16 @@ services:
       # 单节点 KRaft：broker 和 controller 在同一个进程里，不需要 ZooKeeper
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
       # 应用跑在宿主机，所以对外声明 127.0.0.1。
       # 如果以后把应用也容器化，这里要加一个内部 listener（如 kafka:29092）
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
+      # 双 listener：容器内用 kafka:29092，宿主机用 127.0.0.1:9092
+      # 客户端拿到的地址由它连的那个 listener 决定
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://127.0.0.1:9092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@127.0.0.1:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
       # 单节点必须把副本因子设成 1，否则 topic 创建不了
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1

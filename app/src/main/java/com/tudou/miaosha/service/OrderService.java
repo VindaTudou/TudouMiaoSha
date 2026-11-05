@@ -1,62 +1,73 @@
 package com.tudou.miaosha.service;
 
-import com.tudou.miaosha.exception.NotFoundException;
+import com.tudou.miaosha.exception.DuplicateOrderException;
 import com.tudou.miaosha.exception.SoldOutException;
-import com.tudou.miaosha.model.Product;
-import com.tudou.miaosha.repository.OrderRepository;
-import com.tudou.miaosha.repository.ProductRepository;
+import com.tudou.miaosha.exception.ServiceBusyException;
+import com.tudou.miaosha.model.OrderMessage;
 import com.tudou.miaosha.support.OrderNoGenerator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 
+/**
+ * V2 下单：请求路径里【没有 MySQL】。
+ *
+ *   ① Redis Lua：原子完成「幂等检查 + 库存判断 + 扣减」
+ *   ② 发 Kafka：把落库这件事交给消费者
+ *   ③ 立刻返回「排队中」
+ *
+ * 对比 V1：V1 的请求线程要等 MySQL 加锁、写 undo/redo/binlog、等 fsync，
+ * 一次 0.5ms，吞吐封顶 950/s。
+ */
 @Service
 public class OrderService {
 
-    private final ProductRepository products;
-    private final OrderRepository orders;
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
-    public OrderService(ProductRepository products, OrderRepository orders) {
-        this.products = products;
-        this.orders = orders;
+    private final StockService stock;
+    private final OrderProducer producer;
+
+    public OrderService(StockService stock, OrderProducer producer) {
+        this.stock = stock;
+        this.producer = producer;
     }
 
-    /**
-     * V1-a：朴素下单。【故意不加任何并发保护】，用来复现超卖。
-     *
-     * 执行顺序：
-     *   ① SELECT 库存      —— 快照读，不加锁
-     *   ② 判断够不够        —— 基于①读到的值
-     *   ③ UPDATE 库存 = ②算出的值  —— 当前读 + X 锁
-     *   ④ INSERT 订单
-     *
-     * 问题出在 ① 和 ③ 之间：那道缝里的并发写会被 ③ 覆盖。
-     * 这和 V0.1 的 count++ 是同一个 bug。
-     *
-     * @Transactional 让它成为一个事务：③ 拿到的锁要持有到 COMMIT，
-     * 这一点在压测时会明显影响吞吐（锁持有时间 = 事务长度）。
-     */
-    @Transactional
-    public String create(long userId, long productId, int quantity) {
+    public record OrderResult(String orderNo, String status) {
+    }
+
+    public OrderResult create(long userId, long productId, int quantity) {
         if (quantity <= 0) {
             throw new IllegalArgumentException("数量必须大于 0");
         }
 
-        // 查出来是为了拿 price 算金额；库存判断【不】基于它
-        Product p = products.findById(productId)
-                .orElseThrow(() -> new NotFoundException("商品不存在: " + productId));
-
-        // 唯一的判断点：把「够不够」塞进 UPDATE 的 WHERE，用影响行数当结果
-        int affected = products.deductStock(productId, quantity);
-        if (affected == 0) {
+        // ① 原子扣减
+        long r = stock.tryDeduct(productId, userId, quantity);
+        if (r == -2) {
+            throw new IllegalStateException("库存未预热: " + productId);
+        }
+        if (r == -1) {
+            throw new DuplicateOrderException();
+        }
+        if (r == 0) {
             throw new SoldOutException();
         }
 
-        // ④ 落订单
+        // ② 发消息。失败就回滚 Redis，保证「扣了库存一定会有订单」
         String orderNo = OrderNoGenerator.next();
-        BigDecimal amount = p.price().multiply(BigDecimal.valueOf(quantity));
-        orders.insert(orderNo, userId, productId, quantity, amount);
-        return orderNo;
+        BigDecimal amount = stock.price(productId).multiply(BigDecimal.valueOf(quantity));
+        OrderMessage msg = new OrderMessage(
+                orderNo, userId, productId, quantity, amount, System.currentTimeMillis());
+        try {
+            producer.send(msg);
+        } catch (Exception e) {
+            stock.rollback(productId, userId, quantity);
+            log.error("发送 MQ 失败，已回滚库存 orderNo={}", orderNo, e);
+            throw new ServiceBusyException("下单繁忙，请重试");
+        }
+
+        // ③ 立刻返回，不等落库
+        return new OrderResult(orderNo, "QUEUED");
     }
 }
