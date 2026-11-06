@@ -161,6 +161,9 @@ sum(kafka_consumer_fetch_manager_records_lag)       →  75145   ✅
 
 > 这个坑的价值：**"杀了该杀的"和"杀了正在用它的"是两件事。**
 
+> 还有第五个坑在下面第七·补里：`-Xlog:jit+compilation` 被 JDK 17 静默忽略，日志 0 字节。
+> 它和"Tomcat MBean 默认关闭"是同一类——**以为在记，其实什么都没记**。
+
 ## 七、意外收获 1：延迟数字的方差大得吓人
 
 同一份代码、同一个到达率 3,000/s、同样的配置，P99 测出来是这样的：
@@ -269,7 +272,7 @@ PARTITION 2  NEW-OFFSET 0
 
 ## 九、M1 结论
 
-**做成了什么**
+### 做成了什么
 
 | 项 | 结果 |
 |---|---|
@@ -277,21 +280,62 @@ PARTITION 2  NEW-OFFSET 0
 | 自定义指标 | 4 类，全部预注册 |
 | Kafka 积压 | 分区级 lag，可用 |
 | Grafana 面板 | 6 张图，自动加载（`ops/grafana/dashboards/miaosha.json`） |
+| 数据报告 | 8 张图（[m1-report.html](m1-report.html)），自包含单文件 |
 | 告警规则 | 4 条（积压 > 1 万、发送失败率 > 1%、P99 > 500ms、线程满） |
 | 计数准确性 | **3 次对账，误差 0.00%** |
-| 监控自身开销 | 测不出（落在噪声里） |
+| 监控自身开销 | 测不出（17 / 18 / 13 ms，落在噪声里） |
 
-**发现了什么**
+### 量化到的四件事
 
-1. 计数类指标完全可信；延迟类指标**方差极大**，必须先热身、且只能同环境比。
-2. 部署形态（容器 vs 宿主机）对 P99 的影响是 **100 倍级**，这是 V2 数据的一个隐藏前提。
-3. 单商品秒杀时 **Kafka 只有一个分区有数据**，消费并行度实际是 1。
-4. 四个指标坑，其中"Tomcat MBean 默认关闭"最隐蔽。
+| # | 结论 | 数字 |
+|---|---|---|
+| 1 | 计数类指标完全可信 | 89,353 / 86,983 / 87,947，三次误差 0.00% |
+| 2 | 预热是一个必须被排除的变量 | P99 **313ms → 11ms**，需要 **15~17 万单**（约 60 秒满负荷） |
+| 3 | GC 只解释一小部分 | 第 0 分钟 56 次 / 346ms（占全程一半），单次最长 62.8ms |
+| 4 | 单商品秒杀时消费并行度 = 1 | 3 个分区只有 1 个有数据（1,832,506 / 0 / 0） |
 
-**没解决的**
+外加一条隐藏前提：**部署形态影响巨大**——容器内 3,000/s 是 P99 1,488ms，宿主机同样条件是 17ms。
+V2 那些 13~18ms 的数字，前提是"app 在宿主机 + 已跑热"，以前没写下来。
 
-- 延迟方差的根因只定位到"JVM 预热程度"，没有更细的分解。
-- 告警只做到 Prometheus 里能看到 firing，没接 Alertmanager（本地实验不需要）。
+### 踩了五个坑（都会让面板"看着正常其实是错的"）
+
+| 坑 | 表现 | 修法 |
+|---|---|---|
+| Tomcat MBean 默认关闭 | `tomcat_threads_busy_threads` 根本不存在，不报错 | `server.tomcat.mbeanregistry.enabled=true` |
+| `records_lag_max` 是 NaN | `sum()` 全变 NaN，排空循环死等 300 秒 | 改用分区级 `records_lag` |
+| `rate(...[15s])` 配 15s 抓取 | 面板显示"无数据" | 抓取下到 5s，窗口 ≥30s |
+| `lsof -ti :8080` | 把正在抓 8080 的 Prometheus 一起杀了 | `-sTCP:LISTEN` |
+| `-Xlog:jit+compilation` | 日志 0 字节，静默忽略 | 改用 `-XX:+PrintCompilation` |
+
+### 对 M2 的三条硬约束
+
+1. **每轮压测前先热身一轮并丢弃**，否则测的是 JVM 的编译进度
+2. **阈值扫描只在 ≥20 万单之后做**，否则 2,500 和 3,500 的差别会淹没在预热噪声里
+3. 判断"系统行不行"必须 **P99 + 线程数 + 丢弃** 一起看，单看一个必然误判
+
+### 没解决的
+
+- 预热的主因只到"JIT + 池子惰性建立"这一层，没有更细的分解（JIT 日志下手写错了）
+- 告警只做到 Prometheus 里能看到 firing，没接 Alertmanager（本地实验不需要）
+
+### 交付物与复现
+
+| 文件 | 作用 |
+|---|---|
+| `ops/observability.sh` | 起停 Prometheus + Grafana |
+| `ops/prometheus/prometheus.yml` | 抓取配置（5 秒一次） |
+| `ops/prometheus/rules.yml` | 4 条告警规则 |
+| `ops/grafana/dashboards/miaosha.json` | 6 张面板 |
+| `ops/verify-metrics.sh` | 监控对账（`make verify-metrics`） |
+| `ops/warmup-curve.sh` | 预热曲线实验 |
+| `ops/render-report.py` | 生成 `m1-report.html` |
+| `ops/jit-stats.py` | 解析 `-XX:+PrintCompilation` 日志（下次用） |
+
+```bash
+make obs-up && make verify-metrics
+ops/warmup-curve.sh 5 20s
+python3 ops/render-report.py docs/v3/m1-report.html
+```
 
 ---
 
