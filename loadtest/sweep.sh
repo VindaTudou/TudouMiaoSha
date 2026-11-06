@@ -24,7 +24,7 @@ DUR_SEC=${DUR%s}
 OUT=${OUT:-/tmp/sweep.tsv}
 K6=$(find tools -name k6 -type f -path '*/bin/*' | head -1)
 M="docker exec -i -e MYSQL_PWD=root miaosha-mysql mysql -uroot --default-character-set=utf8mb4 miaosha"
-BASE=http://127.0.0.1:8080
+BASE=${BASE:-http://127.0.0.1:8080}   # 可指向网关 http://127.0.0.1:8000
 
 : > "$OUT"
 
@@ -52,7 +52,9 @@ clear_topic() {
     sleep 1
   done
   $KA --create --topic "$TOPIC" --partitions 3 --replication-factor 1 >/dev/null 2>&1
-  sleep 2
+  # 建完不能立刻开压：消费者要重新加入消费组（rebalance），生产者要刷新元数据。
+  # 上一轮就是因为这个干扰，测出一个 132ms 的假点。
+  sleep 12
 }
 
 drain() {
