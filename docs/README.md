@@ -37,6 +37,7 @@
 | V1-a/b | [v1/experiment.md](v1/experiment.md) | 超卖 33 单 → 0 单；吞吐封顶 950/s，根因是单行热点 |
 | V2 | [v2/experiment.md](v2/experiment.md) | 请求侧 950 → 3,000/s（P99 16ms），但落库仍 950/s；瓶颈被搬走没被消灭。含 `linger.ms` 假设被推翻的记录 |
 | V3 | [v3/experiment.md](v3/experiment.md) | 可观测性（M1）：计数 3 次对账误差 0.00%；发现延迟方差 19 倍、单商品只占 1 个分区 |
+| V3 | [v3/m2-experiment-a.html](v3/m2-experiment-a.html) | **M2 实验 A**：容量拐点 1,000→5,000，P99 中位与范围 |
 | V3 | [v3/m1-report.html](v3/m1-report.html) | **M1 数据图**（8 张）：预热曲线、对账、监控开销、进水和出水、积压水位、耗时分解、分区分布、GC |
 
 ## 代码在哪
