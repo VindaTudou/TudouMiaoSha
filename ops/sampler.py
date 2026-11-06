@@ -66,7 +66,7 @@ def pick(text, name, label_filter=None, agg="sum"):
 
 cols = ["t", "success", "soldout", "dup", "ratelimited", "sendfail",
         "busy", "current", "hikari_active", "hikari_pending",
-        "kafka_p99", "redis_p99", "lag", "cpu", "heap_mb"]
+        "kafka_p99", "redis_p99", "lag", "cpu", "heap_mb", "gc_cnt", "gc_pause_s"]
 
 t0 = time.time()
 with open(OUT, "w") as f:
@@ -91,6 +91,8 @@ with open(OUT, "w") as f:
                 int(pick(txt, "kafka_consumer_fetch_manager_records_lag")),
                 round(pick(txt, "process_cpu_usage", agg="max"), 4),
                 round(pick(txt, "jvm_memory_used_bytes", ("area", "heap")) / 1048576, 1),
+                int(pick(txt, "jvm_gc_pause_seconds_count")),
+                round(pick(txt, "jvm_gc_pause_seconds_sum"), 2),
             ]
             f.write(",".join(str(x) for x in row) + "\n")
             f.flush()
