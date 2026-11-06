@@ -2,7 +2,8 @@
 
 用「秒杀」这个场景，把后端架构的每一个决策**用压测数据逼出来**，而不是抄一套企业级配置。
 
-目标岗位：国内后端开发（Java + Spring Boot 3）。所有优化都必须先有瓶颈证据，再有改造。
+目标：一个能复现、能压测、每个决策都有数据支撑的秒杀系统。
+所有优化都必须先有瓶颈证据，再有改造。
 
 **文档入口 → [docs/README.md](docs/README.md)**
 
@@ -54,7 +55,7 @@ tools/         k6 二进制（不入库）
 ## 复现
 
 ```bash
-# 需要 JDK 17、Docker Desktop（4 CPU / 8GB）
+# 需要 JDK 17、Docker、bash
 git checkout v0.1
 cd v0/01-concurrency && bash run-sweep.sh
 ```
@@ -90,12 +91,9 @@ git reset --hard <commit>        # 丢弃提交（只在本地、确认无用时
 
 ## 在 IDE（IntelliJ IDEA）里打开
 
-**先说明一件事**：这台机器的全局 Maven 仓库在 `~/ComputerScience/maven/repository`，
-里面**没有** 3.3.5（只有 3.4.5）。所以直接用 IDE 打开，所有 Spring 注解都会标红
-（`@Repository` `@Service` `@RestController` 全都找不到），但**代码本身是对的**，
-命令行 `make app-build` 能编译通过。
-
-原因是本项目把依赖装在**项目内**的 `.m2repo`，避免写沙箱外的目录。
+本项目把 Maven 依赖装在**仓库内**的 `.m2repo`，不写全局 `~/.m2`。
+IDE 没指向这个目录时，`@Repository` `@Service` `@RestController` 等注解会标红，
+但代码本身是对的——命令行 `make app-build` 能编译通过即可确认。
 
 ### 配置步骤
 
@@ -114,31 +112,26 @@ git reset --hard <commit>        # 丢弃提交（只在本地、确认无用时
 
 ## 端口分配
 
-本机已有原生 **MySQL 9.6（3306）** 和 **Redis 8.6（6379）** 在跑，所以容器错开端口，互不干扰：
+宿主机已有服务占用默认端口时，容器按下表错开。改端口同步改 `docker-compose.yml`。
 
 | 服务 | 宿主机端口 | 容器内 | 说明 |
 |---|---|---|---|
-| MySQL | **3307** | 3306 | 避开原生 MySQL |
-| Redis | **6380** | 6379 | 避开原生 Redis |
-| Kafka | 9092 | 9092 | 无冲突 |
+| MySQL | **3307** | 3306 | 避开宿主机原生 MySQL |
+| Redis | **6380** | 6379 | 避开宿主机原生 Redis |
+| Kafka | 9092 | 9092 | — |
 | 应用 | 8080 | 8080 | 跑在宿主机 |
 
-## 环境
+## 运行环境要求
 
-| 项 | 值 |
+| 项 | 要求 |
 |---|---|
-| 机器 | Apple M2 / 8 核 / 16 GB / macOS |
-| JDK | Temurin 17.0.18 |
-| 容器 | Docker Desktop 29.7.2（Server 同版本，linux/arm64） |
-| VM 配额 | **4 核 / 8,320,299,008 B（≈7.75 GiB）** ← 2026-11-02 实测 |
-| 压测 | k6（V1 起） |
+| JDK | **17**（实现上用到 Spring Boot 3，最低 17） |
+| 容器 | Docker + Compose（MySQL 8.4 / Redis 7 / Kafka 3.8） |
+| 压测 | k6 ≥ 2.3 |
+| 架构 | **arm64 原生镜像**。混入 amd64 会走 QEMU 模拟，测出来的是模拟器性能 |
 
-> 这个配额表是全项目的**测量基准**。V1/V2/V3 的每个数字都必须在同一配额下产生，
-> 中途改配额 = 前面的数字全部作废。每次压测前跑一遍
-> `docker info --format '{{.NCPU}} 核 / {{.MemTotal}} B / {{.Architecture}}'` 核对。
->
-> 另：所有镜像必须是 `linux/arm64` 原生。混入 amd64 镜像会走 QEMU 模拟，
-> 测出来的就不是应用性能而是模拟器性能。
+> 具体的机器型号、核数、内存配额属于测量基准，记录在
+> [BENCHMARK.md](docs/BENCHMARK.md) 顶部——因为压测数字只在同一配额下可比。
 
 ## 许可
 
