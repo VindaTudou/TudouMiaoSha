@@ -16,8 +16,20 @@
 | V0.4 | 热点行 TPS 基线：后面容量估算的锚点 | ✅ 完成 | 同上 |
 | V1-a | 单体 + 直接查库，无锁下单 → 看超卖 | ✅ 完成 | [测试原理与结果](docs/v1/experiment.md) |
 | V1-b | 条件更新修超卖 → 看吞吐代价 | ✅ 完成 | [BENCHMARK](docs/BENCHMARK.md) |
-| V2 | Redis 预扣 + MQ 削峰 | 🚧 进行中 | 基建已就绪 |
-| V3 | 多实例 + 限流 + 可观测 + 故障演练 | ⬜ 待做 | — |
+| V2 | Redis 预扣 + MQ 削峰 | ✅ 完成 | [实验记录](docs/v2/experiment.md) |
+| V3-M1 | 可观测性：Prometheus + Grafana + 4 个自定义指标 | ✅ 完成 | [实验记录](docs/v3/experiment.md) |
+| V3-M2 | 容量实测：**8,000/s 阈值**、12,000/s 拥塞崩溃 | 🚧 进行中 | 同上（实验 C 限流对比待做） |
+| V3-M3 | 多实例 + 雪花号 + Nginx 负载均衡 | ⬜ 待做 | — |
+| V3-M4 | 故障演练：杀 Redis / Kafka / MySQL + 熔断 | ⬜ 待做 | — |
+
+### 一句话结论（截至 V3-M2）
+
+| 问题 | 实测答案 |
+|---|---|
+| 能扛多少 | **可持续 ≈ 9,600/s**，阈值取 8,000/s |
+| 崩溃长什么样 | 不是 5xx，是**吞吐倒挂**：投放 +20% → 吞吐 −11%，P99 1,518ms |
+| 瓶颈在哪 | **Tomcat accept 队列**（服务端 P99 仅 124ms，客户端 1,518ms） |
+| 加堆有用吗 | 没用（`-Xmx384m` vs `1024m`，堆峰值都只有 219MB） |
 
 ## 目录
 
@@ -89,8 +101,7 @@ git reset --hard <commit>        # 丢弃提交（只在本地、确认无用时
 
 1. `File → Open` 选择 **`app/pom.xml`**（不是仓库根目录），按 "Open as Project"
 2. Settings → Build, Execution, Deployment → Build Tools → Maven
-   - **Local repository**：勾选 Override，填
-     `/Users/fangtudou/ComputerScience/Projects/TudouMiaoSha/.m2repo`
+   - **Local repository**：勾选 Override，填 `<仓库根目录>/.m2repo`（绝对路径）
    - 或者保持默认——`app/.mvn/maven.config` 里已经写了
      `-Dmaven.repo.local=../.m2repo`，IDEA 导入时会读到
 3. Maven 面板点 **Reload All Maven Projects**
@@ -128,3 +139,9 @@ git reset --hard <commit>        # 丢弃提交（只在本地、确认无用时
 >
 > 另：所有镜像必须是 `linux/arm64` 原生。混入 amd64 镜像会走 QEMU 模拟，
 > 测出来的就不是应用性能而是模拟器性能。
+
+## 许可
+
+[MIT](LICENSE)。压测数据、实验记录、踩坑过程都可以随便引用；
+如果这些数字帮你省下一次翻车，那就值了。
+
