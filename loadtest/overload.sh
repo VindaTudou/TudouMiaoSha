@@ -32,6 +32,18 @@ echo " 实验 B：过载病历   ${RATE}/s × ${DUR_SEC}s   → ${BASE}"
 echo "=============================================================="
 
 # ---------- 前置 ----------
+KA="docker exec miaosha-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server 127.0.0.1:29092"
+TOPIC=seckill-order
+# CLEAR_TOPIC=1：先把积压清掉，保证每轮从"干净状态"开始。
+# 不清的话，上一轮的积压会让消费者满负荷写 MySQL，污染这一轮（M2-B 踩过）。
+if [ "${CLEAR_TOPIC:-0}" = "1" ]; then
+  $KA --delete --topic "$TOPIC" >/dev/null 2>&1
+  for i in $(seq 1 30); do $KA --list 2>/dev/null | grep -qx "$TOPIC" || break; sleep 1; done
+  $KA --create --topic "$TOPIC" --partitions 3 --replication-factor 1 >/dev/null 2>&1
+  echo "🧹 已清空 topic，等消费组稳定 12 秒 ..."
+  sleep 12
+fi
+
 $M -e "UPDATE product SET stock=10000000 WHERE id=1; DELETE FROM orders;" >/dev/null 2>&1
 curl -sS -m 5 -X POST ${BASE}/api/admin/preheat/1 >/dev/null
 curl -sS -m 5 -X POST ${BASE}/api/orders -H 'Content-Type: application/json' \
